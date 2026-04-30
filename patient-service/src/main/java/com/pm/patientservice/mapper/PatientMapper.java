@@ -1,4 +1,6 @@
 package com.pm.patientservice.mapper;
+import java.time.LocalDate;
+
 import com.pm.patientservice.dto.PatientResponseDTO;
 import com.pm.patientservice.model.Patient;
 
@@ -14,4 +16,14 @@ public class PatientMapper {
     return patientDTO;
   }
   
+
+  public static Patient toModel(PatientResponseDTO patientResponseDTO) {
+    Patient patient = new Patient();
+    patient.setName(patientResponseDTO.getName());
+    patient.setAddress(patientResponseDTO.getAddress());
+    patient.setEmail(patientResponseDTO.getEmail());
+    patient.setDateOfBirth(LocalDate.parse(patientResponseDTO.getDateOfBirth()));
+    patient.setRegisteredDate(LocalDate.parse(patientResponseDTO.getRegistrationDate()));
+    return patient;
+  }
 }
