@@ -15,7 +15,7 @@ import jakarta.validation.constraints.NotNull;
 @Entity
 public class Patient {
   @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
+   @GeneratedValue(strategy = GenerationType.UUID)
   private UUID id;
   
   @NotNull
