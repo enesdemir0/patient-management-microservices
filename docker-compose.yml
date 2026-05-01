@@ -7,28 +7,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     ports:
-      - "5432:5432"
-    networks:
-      - medical-network
-
-  patient-service:
-    build:
-      context: ./patient-service
-      dockerfile: Dockerfile
-    container_name: patient-service-app
-    ports:
-      - "4000:4000"
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME}
-      SPRING_DATASOURCE_USERNAME: ${DB_USER}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-      SPRING_JPA_HIBERNATE_DDL_AUTO: ${JPA_STRATEGY}
-      SPRING_DATASOURCE_DRIVER: org.postgresql.Driver
-      # This tells Patient-Service where to find the Billing-Service for gRPC
-      BILLING_SERVICE_HOST: billing-service
-      BILLING_SERVICE_PORT: 9001
-    depends_on:
-      - db
+      - "5432:5432" # Database usually stays 5432
     networks:
       - medical-network
 
@@ -38,11 +17,33 @@ services:
       dockerfile: Dockerfile
     container_name: billing-service-app
     ports:
-      - "4001:4001" # REST Port
-      - "9001:9001" # gRPC Port
+      - "${BILLING_REST_PORT}:${BILLING_REST_PORT}"
+      - "${BILLING_GRPC_PORT}:${BILLING_GRPC_PORT}"
     environment:
-      SERVER_PORT: 4001
-      GRPC_SERVER_PORT: 9001
+      SERVER_PORT: ${BILLING_REST_PORT}
+      GRPC_SERVER_PORT: ${BILLING_GRPC_PORT}
+    networks:
+      - medical-network
+
+  patient-service:
+    build:
+      context: ./patient-service
+      dockerfile: Dockerfile
+    container_name: patient-service-app
+    ports:
+      - "${PATIENT_PORT}:${PATIENT_PORT}"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${JPA_STRATEGY}
+      SPRING_DATASOURCE_DRIVER: org.postgresql.Driver
+      # Service-to-service communication
+      BILLING_SERVICE_HOST: billing-service
+      BILLING_SERVICE_PORT: ${BILLING_GRPC_PORT}
+    depends_on:
+      - db
+      - billing-service
     networks:
       - medical-network
 
