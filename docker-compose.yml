@@ -24,8 +24,25 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       SPRING_JPA_HIBERNATE_DDL_AUTO: ${JPA_STRATEGY}
       SPRING_DATASOURCE_DRIVER: org.postgresql.Driver
+      # This tells Patient-Service where to find the Billing-Service for gRPC
+      BILLING_SERVICE_HOST: billing-service
+      BILLING_SERVICE_PORT: 9001
     depends_on:
       - db
+    networks:
+      - medical-network
+
+  billing-service:
+    build:
+      context: ./billing-service
+      dockerfile: Dockerfile
+    container_name: billing-service-app
+    ports:
+      - "4001:4001" # REST Port
+      - "9001:9001" # gRPC Port
+    environment:
+      SERVER_PORT: 4001
+      GRPC_SERVER_PORT: 9001
     networks:
       - medical-network
 
