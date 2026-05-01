@@ -19,7 +19,6 @@ public class PatientRequestDTO {
   @NotBlank(message = "Date of Birth is required")
   private String dateOfBirth;
 
-  @NotBlank(message = "Registered Date is required")
   private String registeredDate;
 
   public String getName() {
