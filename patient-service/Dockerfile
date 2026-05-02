@@ -1,28 +1,26 @@
-# --- Stage 1: Build ---
-FROM maven:3.9.9-eclipse-temurin-21-alpine AS builder
+# --- Stage 1: Build (Changed to standard Linux to support gRPC compilation) ---
+FROM maven:3.9.9-eclipse-temurin-21 AS builder
 WORKDIR /app
 
-# Copy only the pom.xml first to cache dependencies (Faster builds)
+# Copy only the pom.xml first to cache dependencies
 COPY pom.xml .
 RUN mvn dependency:go-offline -B
 
 # Copy source and build
 COPY src ./src
-# Use -DskipTests to make the build faster
 RUN mvn clean package -DskipTests
 
-# --- Stage 2: Run (The Small Part) ---
-# We use JRE (Runtime only) and Alpine (Tiny Linux)
+# --- Stage 2: Run (Keeping Alpine for tiny image size) ---
 FROM eclipse-temurin:21-jre-alpine AS runner
 WORKDIR /app
 
-# Use a wildcard (*.jar) so you don't have to change this 
-# every time you change the version in your pom.xml
+# Copy the jar from the builder stage
 COPY --from=builder /app/target/*.jar ./patient-service.jar
 
+# REST port
 EXPOSE 4000
 
-# Security tip: Run as a non-root user
+# Security: Run as non-root
 RUN addgroup -S spring && adduser -S spring -G spring
 USER spring:spring
 

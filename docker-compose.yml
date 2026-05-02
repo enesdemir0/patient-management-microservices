@@ -1,49 +1,73 @@
 services:
+  # --- THE DATABASE ---
   db:
     image: postgres:15-alpine
-    container_name: postgres-db
+    container_name: patient-service-db
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-    ports:
-      - "5432:5432" # Database usually stays 5432
     networks:
       - medical-network
 
-  billing-service:
-    build:
-      context: ./billing-service
-      dockerfile: Dockerfile
-    container_name: billing-service-app
-    ports:
-      - "${BILLING_REST_PORT}:${BILLING_REST_PORT}"
-      - "${BILLING_GRPC_PORT}:${BILLING_GRPC_PORT}"
+  # --- THE KAFKA BROKER ---
+ # --- THE KAFKA BROKER (Official Apache Image) ---
+  kafka:
+    image: apache/kafka:latest
+    container_name: kafka-broker
+    restart: on-failure 
     environment:
-      SERVER_PORT: ${BILLING_REST_PORT}
-      GRPC_SERVER_PORT: ${BILLING_GRPC_PORT}
+      # These variables are for "KRaft" mode (No Zookeeper needed)
+      - KAFKA_NODE_ID=1
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+      - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
     networks:
       - medical-network
-
+  # --- PATIENT SERVICE (Producer) ---
   patient-service:
-    build:
-      context: ./patient-service
-      dockerfile: Dockerfile
+    build: ./patient-service
     container_name: patient-service-app
+    restart: on-failure
     ports:
-      - "${PATIENT_PORT}:${PATIENT_PORT}"
+      - "4000:4000"
+      - "5005:5005"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME}
+      JAVA_TOOL_OPTIONS: -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+      # FIX 1: Change 'db' to 'patient-service-db' to match your container name
+      SPRING_DATASOURCE_URL: jdbc:postgresql://patient-service-db:5432/${DB_NAME}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-      SPRING_JPA_HIBERNATE_DDL_AUTO: ${JPA_STRATEGY}
+      # FIX 2: Explicitly tell it to use the Postgres Driver
       SPRING_DATASOURCE_DRIVER: org.postgresql.Driver
-      # Service-to-service communication
-      BILLING_SERVICE_HOST: billing-service
-      BILLING_SERVICE_PORT: ${BILLING_GRPC_PORT}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      BILLING_SERVICE_HOST: billing-service-app
+      BILLING_SERVICE_PORT: 9001
     depends_on:
       - db
-      - billing-service
+      - kafka
+    networks:
+      - medical-network
+
+  # --- BILLING SERVICE (Consumer) ---
+  billing-service:
+    build: ./billing-service
+    container_name: billing-service-app
+    ports:
+      - "4001:4001"
+      - "9001:9001"
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+    depends_on:
+      - kafka
     networks:
       - medical-network
 
