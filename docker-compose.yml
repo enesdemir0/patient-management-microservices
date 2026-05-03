@@ -1,6 +1,6 @@
 services:
-  # --- 1. INFRASTRUCTURE (The Foundation) ---
-  db:
+  # --- 1. PATIENT DATABASE ---
+  patient-service-db:
     image: postgres:15-alpine
     container_name: patient-service-db
     environment:
@@ -10,6 +10,18 @@ services:
     networks:
       - medical-network
 
+  # --- 2. AUTH DATABASE (The one you asked for) ---
+  auth-service-db:
+    image: postgres:15-alpine
+    container_name: auth-service-db
+    environment:
+      POSTGRES_USER: ${AUTH_DB_USER}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD}
+      POSTGRES_DB: ${AUTH_DB_NAME}
+    networks:
+      - medical-network
+
+  # --- 3. KAFKA BROKER ---
   kafka:
     image: apache/kafka:latest
     container_name: kafka-broker
@@ -27,62 +39,75 @@ services:
     networks:
       - medical-network
 
-  # --- 2. INTERNAL SERVICES (Hidden from the Internet) ---
-  # Notice: I REMOVED the "ports" section. 
-  # This makes them private. Only the Gateway can talk to them.
-
-  billing-service:
-    build: ./billing-service
-    container_name: billing-service-app
-    # ports: - "4001:4001" <-- REMOVED for security
+  # --- 4. AUTH SERVICE (New) ---
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service-app
+    ports:
+      - "4005:4005"
     environment:
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      # These match your teacher's variables exactly
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-service-db:5432/${AUTH_DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${AUTH_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${AUTH_DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_SQL_INIT_MODE: always
     depends_on:
-      - kafka
+      - auth-service-db
     networks:
       - medical-network
 
-  analytics-service:
-    build: ./analytics-service
-    container_name: analytics-service-app
-    # ports: - "4002:4002" <-- REMOVED for security
-    environment:
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
-    depends_on:
-      - kafka
-    networks:
-      - medical-network
-
+  # --- 5. PATIENT SERVICE ---
   patient-service:
     build: ./patient-service
     container_name: patient-service-app
     restart: on-failure
-    # ports: - "4000:4000" <-- REMOVED for security
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://patient-service-db:5432/${DB_NAME}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       SPRING_DATASOURCE_DRIVER: org.postgresql.Driver
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       BILLING_SERVICE_HOST: billing-service-app
       BILLING_SERVICE_PORT: 9001
     depends_on:
-      - db
+      - patient-service-db
       - kafka
-      - billing-service
     networks:
       - medical-network
 
-  # --- 3. THE FRONT DOOR (The Only Public Service) ---
+  # --- 6. BILLING SERVICE ---
+  billing-service:
+    build: ./billing-service
+    container_name: billing-service-app
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      - kafka
+    networks:
+      - medical-network
+
+  # --- 7. ANALYTICS SERVICE ---
+  analytics-service:
+    build: ./analytics-service
+    container_name: analytics-service-app
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      - kafka
+    networks:
+      - medical-network
+
+  # --- 8. API GATEWAY ---
   api-gateway:
     build: ./api-gateway
     container_name: api-gateway-app
     ports:
-      - "4004:4004" # The only door open to the outside world
+      - "4004:4004"
     depends_on:
       - patient-service
-      - billing-service
+      - auth-service
     networks:
       - medical-network
 
