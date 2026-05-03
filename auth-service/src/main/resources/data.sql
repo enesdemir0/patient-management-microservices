@@ -17,4 +17,3 @@ WHERE NOT EXISTS (
        OR email = 'testuser@test.com'
 );
 
-

@@ -1,24 +1,38 @@
 server:
-  port: 4004 # Gateway listens on port 4004
+  port: 4004
 
 spring:
   cloud:
     gateway:
       routes:
-        # Route for /api/patients/** to patient-service
+        # --- AUTH SERVICE ---
+        - id: auth-service-route
+          uri: ${AUTH_SERVICE_URL:http://auth-service-app:4005}
+          predicates:
+            - Path=/auth/**
+          filters:
+            - StripPrefix=1
+
+        # --- PATIENT SERVICE ---
         - id: patient-service-route
-          uri: http://patient-service:4000
+          uri: ${PATIENT_SERVICE_URL:http://patient-service-app:4000}
           predicates:
             - Path=/api/patients/**
           filters:
             - StripPrefix=1
+            - JwtValidation # Make sure this Java class exists!
 
-
-        # Route for /api/docs/patients to patient-service /v3/api-docs
+        # --- SWAGGER DOCS ---
         - id: api-docs-patient-route
-          uri: http://patient-service:4000
+          uri: ${PATIENT_SERVICE_URL:http://patient-service-app:4000}
           predicates:
             - Path=/api-docs/patients
           filters:
             - RewritePath=/api-docs/patients,/v3/api-docs
 
+        - id: api-docs-auth-route
+          uri: ${AUTH_SERVICE_URL:http://auth-service-app:4005}
+          predicates:
+            - Path=/api-docs/auth
+          filters:
+            - RewritePath=/api-docs/auth,/v3/api-docs

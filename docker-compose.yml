@@ -43,8 +43,7 @@ services:
   auth-service:
     build: ./auth-service
     container_name: auth-service-app
-    ports:
-      - "4005:4005"
+
     environment:
       # These match your teacher's variables exactly
       SPRING_DATASOURCE_URL: jdbc:postgresql://auth-service-db:5432/${AUTH_DB_NAME}
@@ -106,6 +105,10 @@ services:
     container_name: api-gateway-app
     ports:
       - "4004:4004"
+    environment:
+      # We tell the Gateway exactly where the other containers are
+      - AUTH_SERVICE_URL=http://auth-service-app:4005
+      - PATIENT_SERVICE_URL=http://patient-service-app:4000
     depends_on:
       - patient-service
       - auth-service
