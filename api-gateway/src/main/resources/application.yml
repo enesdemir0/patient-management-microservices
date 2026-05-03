@@ -5,33 +5,35 @@ spring:
   cloud:
     gateway:
       routes:
-        # --- AUTH SERVICE ---
+        # Route for Auth Service
         - id: auth-service-route
-          uri: ${AUTH_SERVICE_URL:http://auth-service-app:4005}
+          # Use the variable from Docker Compose
+          uri: ${AUTH_SERVICE_URL:http://auth-service:4005}
           predicates:
             - Path=/auth/**
           filters:
             - StripPrefix=1
 
-        # --- PATIENT SERVICE ---
+        # Route for Patient Service
         - id: patient-service-route
-          uri: ${PATIENT_SERVICE_URL:http://patient-service-app:4000}
+          uri: ${PATIENT_SERVICE_URL:http://patient-service:4000}
           predicates:
             - Path=/api/patients/**
           filters:
             - StripPrefix=1
-            - JwtValidation # Make sure this Java class exists!
+            - JwtValidation
 
-        # --- SWAGGER DOCS ---
+        # Swagger Docs for Patients
         - id: api-docs-patient-route
-          uri: ${PATIENT_SERVICE_URL:http://patient-service-app:4000}
+          uri: ${PATIENT_SERVICE_URL:http://patient-service:4000}
           predicates:
             - Path=/api-docs/patients
           filters:
             - RewritePath=/api-docs/patients,/v3/api-docs
 
+        # Swagger Docs for Auth
         - id: api-docs-auth-route
-          uri: ${AUTH_SERVICE_URL:http://auth-service-app:4005}
+          uri: ${AUTH_SERVICE_URL:http://auth-service:4005}
           predicates:
             - Path=/api-docs/auth
           filters:
