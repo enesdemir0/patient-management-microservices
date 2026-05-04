@@ -32,7 +32,8 @@ jobs:
         echo "AUTH_DB_USER=auth_admin" >> .env
         echo "AUTH_DB_PASSWORD=auth_password" >> .env
         echo "AUTH_DB_NAME=authdb" >> .env
-        echo "JWT_SECRET=GitHubActionsSecretKeyForTesting12345" >> .env
+        # Use a long secret with no special characters to avoid the Base64 error
+        echo "JWT_SECRET=ThisIsAStrongSecretKeyForTestingPurposes1234567890" >> .env
         echo "KAFKA_BOOTSTRAP_SERVERS=kafka:9092" >> .env
         echo "PATIENT_PORT=4000" >> .env
         echo "BILLING_REST_PORT=4001" >> .env
@@ -46,14 +47,15 @@ jobs:
 
     # 5. Wait for Kafka and Services to be ready (DevOps Essential)
     - name: Wait for services
-      run: sleep 60 # Give Kafka and DBs 60 seconds to fully wake up
+      run: sleep 90 # Give Kafka and DBs 90 seconds to fully wake up
 
     # 6. Run the Integration Tests
     - name: Run Integration Tests
       run: |
         cd integration-tests
         chmod +x mvnw
-        ./mvnw clean test
+        # The -e flag shows the full error trace
+        ./mvnw clean test -e
 
     # 7. Print Logs if tests fail (for debugging)
     - name: Docker Logs on Failure
