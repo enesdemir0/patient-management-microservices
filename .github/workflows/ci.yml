@@ -1,0 +1,61 @@
+name: Java Microservices CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. Get the code
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # 2. Setup Java 21
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: maven
+
+    # 3. Create a dummy .env file (GitHub needs this because your real one is ignored)
+    - name: Create .env file
+      run: |
+        echo "DB_USER=admin" >> .env
+        echo "DB_PASSWORD=password" >> .env
+        echo "DB_NAME=patientdb" >> .env
+        echo "AUTH_DB_USER=auth_admin" >> .env
+        echo "AUTH_DB_PASSWORD=auth_password" >> .env
+        echo "AUTH_DB_NAME=authdb" >> .env
+        echo "JWT_SECRET=GitHubActionsSecretKeyForTesting12345" >> .env
+        echo "KAFKA_BOOTSTRAP_SERVERS=kafka:9092" >> .env
+        echo "PATIENT_PORT=4000" >> .env
+        echo "BILLING_REST_PORT=4001" >> .env
+        echo "BILLING_GRPC_PORT=9001" >> .env
+        echo "GATEWAY_PORT=4004" >> .env
+        echo "JPA_STRATEGY=update" >> .env
+
+    # 4. Build and Start the Microservices using Docker Compose
+    - name: Build and Start Services
+      run: docker compose up -d --build
+
+    # 5. Wait for Kafka and Services to be ready (DevOps Essential)
+    - name: Wait for services
+      run: sleep 60 # Give Kafka and DBs 60 seconds to fully wake up
+
+    # 6. Run the Integration Tests
+    - name: Run Integration Tests
+      run: |
+        cd integration-tests
+        chmod +x mvnw
+        ./mvnw clean test
+
+    # 7. Print Logs if tests fail (for debugging)
+    - name: Docker Logs on Failure
+      if: failure()
+      run: docker compose logs
