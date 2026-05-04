@@ -1,4 +1,4 @@
-package test.java;
+package com.pm;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.notNullValue;
