@@ -69,8 +69,8 @@ jobs:
         run: |
           kubectl wait deployment/patient-service-db --for=condition=Available --timeout=120s -n healthcare
           kubectl wait deployment/auth-service-db --for=condition=Available --timeout=120s -n healthcare
-          # HUGE TIMEOUT FOR KAFKA
-          kubectl wait deployment/kafka --for=condition=Available --timeout=600s -n healthcare
+          # Kafka için bekleme süresi 15 dakikaya çıkarıldı
+          kubectl wait deployment/kafka --for=condition=Available --timeout=900s -n healthcare
 
       - name: Wait for all application pods
         run: |
@@ -84,7 +84,7 @@ jobs:
       - name: Port-forward API Gateway
         run: |
           kubectl port-forward svc/api-gateway 4004:4004 -n healthcare &
-          sleep 15
+          sleep 20
 
       - name: Run integration tests
         run: |
@@ -95,6 +95,9 @@ jobs:
       - name: Dump pod logs on failure
         if: failure()
         run: |
+          echo "=== K8s Events ==="
+          kubectl get events -n healthcare
+          echo "=== Pod Status ==="
           kubectl get pods -n healthcare -o wide
           for pod in $(kubectl get pods -n healthcare -o name); do
             echo "=== Logs for $pod ==="

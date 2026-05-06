@@ -19,9 +19,6 @@ spec:
         ports:
         - containerPort: 9092
         env:
-        # Limit memory usage for CI stability
-        - name: KAFKA_HEAP_OPTS
-          value: "-Xmx512M -Xms256M"
         - name: KAFKA_NODE_ID
           value: "1"
         - name: KAFKA_PROCESS_ROLES
@@ -40,6 +37,8 @@ spec:
           value: "1"
         - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
           value: "0"
+        - name: KAFKA_HEAP_OPTS
+          value: "-Xmx512M -Xms256M"
         resources:
           requests:
             memory: "512Mi"
@@ -47,11 +46,13 @@ spec:
           limits:
             memory: "1Gi"
             cpu: "500m"
+        # SAĞLIK KONTROLÜ GÜNCELLEMESİ
         readinessProbe:
           tcpSocket:
             port: 9092
-          initialDelaySeconds: 40
+          initialDelaySeconds: 60 # İlk kontrol için 1 dakika bekle
           periodSeconds: 10
+          failureThreshold: 15    # Hemen pes etme, 15 kez dene
 ---
 apiVersion: v1
 kind: Service
