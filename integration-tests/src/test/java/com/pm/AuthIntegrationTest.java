@@ -11,7 +11,8 @@ public class AuthIntegrationTest {
 
   @BeforeAll
   static void setUp(){
-    RestAssured.baseURI = "http://localhost:4004";
+    // Reads -Dgateway.url passed by Maven (CI sets this to the K8s port-forward address)
+    RestAssured.baseURI = System.getProperty("gateway.url", "http://localhost:4004");
   }
 
   @Test

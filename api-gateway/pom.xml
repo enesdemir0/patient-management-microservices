@@ -28,6 +28,12 @@
       <artifactId>spring-cloud-starter-gateway</artifactId>
     </dependency>
 
+    <!-- Actuator for K8s health probes -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+
     <!-- Standard Spring Boot Test -->
     <dependency>
       <groupId>org.springframework.boot</groupId>

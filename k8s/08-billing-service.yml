@@ -1,0 +1,70 @@
+---
+# ── Deployment ───────────────────────────────────────────────────────────────
+# Billing service exposes two ports:
+#   4001 — HTTP REST (and Spring Boot Actuator)
+#   9001 — gRPC server (consumed by patient-service via grpc-spring-boot-starter)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-service
+  namespace: healthcare
+  labels:
+    app: billing-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: billing-service
+  template:
+    metadata:
+      labels:
+        app: billing-service
+    spec:
+      containers:
+        - name: billing-service
+          image: billing-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4001
+              name: http
+            - containerPort: 9001
+              name: grpc
+          env:
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 4001
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 4001
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            failureThreshold: 3
+
+---
+# ── Service (ClusterIP) ───────────────────────────────────────────────────────
+# Both HTTP and gRPC ports are exposed so patient-service can reach gRPC on 9001
+apiVersion: v1
+kind: Service
+metadata:
+  name: billing-service
+  namespace: healthcare
+spec:
+  selector:
+    app: billing-service
+  ports:
+    - name: http
+      port: 4001
+      targetPort: 4001
+    - name: grpc
+      port: 9001
+      targetPort: 9001

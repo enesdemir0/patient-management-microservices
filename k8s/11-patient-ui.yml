@@ -1,0 +1,57 @@
+---
+# ── Deployment ───────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-ui
+  namespace: healthcare
+  labels:
+    app: patient-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: patient-ui
+  template:
+    metadata:
+      labels:
+        app: patient-ui
+    spec:
+      containers:
+        - name: patient-ui
+          image: patient-ui:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+
+---
+# ── Service ───────────────────────────────────────────────────────────────────
+# NodePort 30000 → nginx port 80 inside the pod.
+# Access the UI at http://<node-ip>:30000 or via port-forward.
+apiVersion: v1
+kind: Service
+metadata:
+  name: patient-ui
+  namespace: healthcare
+spec:
+  type: NodePort
+  selector:
+    app: patient-ui
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30000

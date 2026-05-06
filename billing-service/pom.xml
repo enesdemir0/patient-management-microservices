@@ -29,6 +29,12 @@
       <artifactId>spring-boot-starter-web</artifactId>
     </dependency>
 
+    <!-- Actuator for K8s health probes -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+
     <!-- gRPC Spring Boot Starter (Handles server setup) -->
     <dependency>
       <groupId>net.devh</groupId>

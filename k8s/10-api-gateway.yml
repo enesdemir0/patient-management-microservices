@@ -1,0 +1,70 @@
+---
+# ── Deployment ───────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: healthcare
+  labels:
+    app: api-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+        - name: api-gateway
+          image: api-gateway:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4004
+          env:
+            - name: AUTH_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: AUTH_SERVICE_URL
+            - name: PATIENT_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: PATIENT_SERVICE_URL
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 4004
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 4004
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            failureThreshold: 3
+
+---
+# ── Service ───────────────────────────────────────────────────────────────────
+# NodePort 30004 → port 4004 inside cluster.
+# In CI the workflow uses "kubectl port-forward svc/api-gateway 4004:4004"
+# so integration tests can reach localhost:4004 regardless of NodePort.
+# For local kind, you can access it directly via NodePort too.
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: healthcare
+spec:
+  type: NodePort
+  selector:
+    app: api-gateway
+  ports:
+    - port: 4004
+      targetPort: 4004
+      nodePort: 30004

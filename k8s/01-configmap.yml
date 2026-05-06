@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: healthcare
+data:
+  # ── Database names ──────────────────────────────────────────────────────────
+  PATIENT_DB_NAME: "patientdb"
+  AUTH_DB_NAME: "authdb"
+
+  # ── JDBC URLs (service DNS inside K8s matches Service names below) ──────────
+  SPRING_DATASOURCE_URL_PATIENT: "jdbc:postgresql://patient-service-db:5432/patientdb"
+  SPRING_DATASOURCE_URL_AUTH:    "jdbc:postgresql://auth-service-db:5432/authdb"
+
+  # ── Kafka ───────────────────────────────────────────────────────────────────
+  # "kafka" is the K8s Service name defined in 05-kafka.yml
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+
+  # ── gRPC (billing-service K8s Service name) ─────────────────────────────────
+  # NOTE: Docker Compose used "billing-service-app" — K8s uses "billing-service"
+  BILLING_SERVICE_HOST: "billing-service"
+  BILLING_SERVICE_PORT: "9001"
+
+  # ── JPA ─────────────────────────────────────────────────────────────────────
+  SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
+  SPRING_SQL_INIT_MODE: "always"
+
+  # ── Gateway upstream URLs ────────────────────────────────────────────────────
+  AUTH_SERVICE_URL:    "http://auth-service:4005"
+  PATIENT_SERVICE_URL: "http://patient-service:4000"

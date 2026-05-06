@@ -1,0 +1,87 @@
+---
+# ── PersistentVolumeClaim ────────────────────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: patient-db-pvc
+  namespace: healthcare
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# ── Deployment ───────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service-db
+  namespace: healthcare
+  labels:
+    app: patient-service-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: patient-service-db
+  template:
+    metadata:
+      labels:
+        app: patient-service-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-secrets
+                  key: PATIENT_DB_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secrets
+                  key: PATIENT_DB_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: PATIENT_DB_NAME
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "admin", "-d", "patientdb"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 5
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "admin", "-d", "patientdb"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: patient-db-pvc
+
+---
+# ── Service (ClusterIP — internal only) ─────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: patient-service-db
+  namespace: healthcare
+spec:
+  selector:
+    app: patient-service-db
+  ports:
+    - port: 5432
+      targetPort: 5432

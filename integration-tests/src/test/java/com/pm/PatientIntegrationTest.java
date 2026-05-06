@@ -10,7 +10,8 @@ import org.junit.jupiter.api.Test;
 public class PatientIntegrationTest {
   @BeforeAll
   static void setUp(){
-    RestAssured.baseURI = "http://localhost:4004";
+    // Reads -Dgateway.url passed by Maven (CI sets this to the K8s port-forward address)
+    RestAssured.baseURI = System.getProperty("gateway.url", "http://localhost:4004");
   }
 
   @Test
@@ -33,12 +34,14 @@ public class PatientIntegrationTest {
         .jsonPath()
         .get("token");
 
+    // PatientController returns a JSON array at root: [{...}, {...}]
+    // GPath "patients" on an array root is always null — use "$" (root) instead.
     given()
         .header("Authorization", "Bearer " + token)
         .when()
         .get("/api/patients")
         .then()
         .statusCode(200)
-        .body("patients", notNullValue());
+        .body("$", notNullValue());
   }
 }
