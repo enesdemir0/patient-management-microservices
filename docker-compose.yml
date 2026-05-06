@@ -114,6 +114,17 @@ services:
     networks:
       - medical-network
 
+  # --- 9. PATIENT UI ---
+  patient-ui:
+    build: ./patient-ui
+    container_name: patient-ui-app
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - medical-network
+
 networks:
   medical-network:
     driver: bridge
