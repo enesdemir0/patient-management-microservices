@@ -17,11 +17,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ── 2. Set up Docker Buildx (layer caching for faster image builds) ──────
+      # ── 2. Set up Docker Buildx ──────────────────────────────────────────────
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # ── 3. Java (integration-tests only — services build inside Docker) ───────
+      # ── 3. Set up JDK 21 ─────────────────────────────────────────────────────
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
@@ -37,36 +37,26 @@ jobs:
           cluster_name: healthcare-cluster
 
       # ── 5. Build all Docker images ────────────────────────────────────────────
-      # Each Java service builds via its own multi-stage Dockerfile (Maven inside)
-      - name: Build auth-service image
-        run: docker build -t auth-service:latest ./auth-service
+      - name: Build images
+        run: |
+          docker build -t auth-service:latest ./auth-service
+          docker build -t patient-service:latest ./patient-service
+          docker build -t billing-service:latest ./billing-service
+          docker build -t analytics-service:latest ./analytics-service
+          docker build -t api-gateway:latest ./api-gateway
+          docker build -t patient-ui:latest ./patient-ui
 
-      - name: Build patient-service image
-        run: docker build -t patient-service:latest ./patient-service
-
-      - name: Build billing-service image
-        run: docker build -t billing-service:latest ./billing-service
-
-      - name: Build analytics-service image
-        run: docker build -t analytics-service:latest ./analytics-service
-
-      - name: Build api-gateway image
-        run: docker build -t api-gateway:latest ./api-gateway
-
-      - name: Build patient-ui image
-        run: docker build -t patient-ui:latest ./patient-ui
-
-      # ── 6. Load images into kind (bypasses Docker Hub — uses local images) ────
+      # ── 6. Load images into kind ─────────────────────────────────────────────
       - name: Load images into kind cluster
         run: |
-          kind load docker-image auth-service:latest     --name healthcare-cluster
-          kind load docker-image patient-service:latest  --name healthcare-cluster
-          kind load docker-image billing-service:latest  --name healthcare-cluster
+          kind load docker-image auth-service:latest      --name healthcare-cluster
+          kind load docker-image patient-service:latest   --name healthcare-cluster
+          kind load docker-image billing-service:latest   --name healthcare-cluster
           kind load docker-image analytics-service:latest --name healthcare-cluster
-          kind load docker-image api-gateway:latest      --name healthcare-cluster
-          kind load docker-image patient-ui:latest       --name healthcare-cluster
+          kind load docker-image api-gateway:latest       --name healthcare-cluster
+          kind load docker-image patient-ui:latest        --name healthcare-cluster
 
-      # ── 7. Apply all Kubernetes manifests in numbered order ───────────────────
+      # ── 7. Apply all Kubernetes manifests ────────────────────────────────────
       - name: Apply Kubernetes manifests
         run: |
           kubectl apply -f k8s/00-namespace.yml
@@ -82,59 +72,38 @@ jobs:
           kubectl apply -f k8s/10-api-gateway.yml
           kubectl apply -f k8s/11-patient-ui.yml
 
-      # ── 8. Wait for infrastructure pods (postgres + kafka) ────────────────────
-      # Give databases and Kafka time to become ready before Spring Boot tries
-      # to connect — avoids CrashLoopBackOff on the application tier.
-      - name: Wait for databases and Kafka to be ready
+      # ── 8. Wait for infrastructure pods (Increased Timeout) ──────────────────
+      - name: Wait for databases and Kafka
         run: |
-          kubectl wait deployment/patient-service-db \
-            --for=condition=Available --timeout=120s -n healthcare
-          kubectl wait deployment/auth-service-db \
-            --for=condition=Available --timeout=120s -n healthcare
-          kubectl wait deployment/kafka \
-            --for=condition=Available --timeout=120s -n healthcare
+          kubectl wait deployment/patient-service-db --for=condition=Available --timeout=120s -n healthcare
+          kubectl wait deployment/auth-service-db --for=condition=Available --timeout=120s -n healthcare
+          # Increased to 300s because Kafka is slow to initialize KRaft storage
+          kubectl wait deployment/kafka --for=condition=Available --timeout=300s -n healthcare
 
-      # ── 9. Wait for all application pods to be ready ─────────────────────────
-      # Spring Boot services connect to DB + Kafka on startup, which takes time.
-      # The initialDelaySeconds in probes gives 60-90 s before K8s starts probing;
-      # --timeout=300s here is the outer deadline for the whole wait.
+      # ── 9. Wait for all application pods ─────────────────────────────────────
       - name: Wait for all pods to be Ready
         run: |
-          kubectl wait pod --all --for=condition=Ready \
-            --timeout=300s -n healthcare
+          kubectl wait pod --all --for=condition=Ready --timeout=300s -n healthcare
 
-      # ── 10. Show pod status (useful log context before tests run) ─────────────
-      - name: Show pod and service status
-        run: |
-          kubectl get pods    -n healthcare -o wide
-          kubectl get services -n healthcare
-
-      # ── 11. Port-forward the API Gateway to localhost:4004 ────────────────────
-      # Integration tests are hardcoded to localhost:4004 (the gateway port).
-      # port-forward runs in the background (&); we wait 5 s for it to establish.
+      # ── 10. Port-forward the API Gateway ─────────────────────────────────────
       - name: Port-forward API Gateway
         run: |
           kubectl port-forward svc/api-gateway 4004:4004 -n healthcare &
-          sleep 5
+          sleep 10 # Increased wait for port-forward to stabilize
 
-      # ── 12. Run integration tests against the live K8s cluster ───────────────
-      # -Dgateway.url is read by AuthIntegrationTest and PatientIntegrationTest
-      # via System.getProperty("gateway.url", "http://localhost:4004")
+      # ── 11. Run integration tests ────────────────────────────────────────────
       - name: Run integration tests
         run: |
           cd integration-tests
           chmod +x mvnw
           ./mvnw clean test -e -Dgateway.url=http://localhost:4004
 
-      # ── 13. Debug output on failure ───────────────────────────────────────────
+      # ── 12. Debug output on failure ──────────────────────────────────────────
       - name: Dump pod logs on failure
         if: failure()
         run: |
-          echo "=== Pod Status ==="
           kubectl get pods -n healthcare -o wide
-          echo ""
           for pod in $(kubectl get pods -n healthcare -o name); do
-            echo "=== Logs: $pod ==="
-            kubectl logs $pod -n healthcare --tail=50 || true
-            echo ""
+            echo "=== Logs for $pod ==="
+            kubectl logs $pod -n healthcare --tail=100 || true
           done
